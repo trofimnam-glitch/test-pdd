@@ -1,80 +1,87 @@
-from flask import Flask, request, jsonify
-import time
-import smtplib
-import os
+from flask import Flask, request, jsonify, render_template
+import time, os, smtplib, random
 
 app = Flask(__name__)
-@app.route("/")
-def home():
-    return """
-    <h1>Тест ПДД</h1>
-    <p>Система работает</p>
-    """
+
 attempts = {}
 
-QUESTIONS = {
+# 👉 УПРОЩЕННЫЕ “РЕАЛЬНЫЕ” БИЛЕТЫ (аналог экзамена)
+QUESTIONS_BANK = {
     "ab": [
-        {"q": "Кто имеет приоритет?", "a": ["A", "B"], "correct": 0},
-        {"q": "Можно ли обгонять?", "a": ["Да", "Нет"], "correct": 1}
+        {"q":"Перекрёсток без знаков — кто главный?", "img":"/static/1.png",
+         "a":["слева","справа","главная дорога","пешеход"], "correct":1},
+
+        {"q":"Можно ли обгон на пешеходном переходе?", "img":"/static/2.png",
+         "a":["да","нет"], "correct":1},
+
+        {"q":"Максимальная скорость в городе?", "img":"/static/3.png",
+         "a":["60","80","90"], "correct":0}
     ],
+
     "cd": [
-        {"q": "Разрешена ли остановка?", "a": ["Да", "Нет"], "correct": 0}
+        {"q":"Грузовик на перекрёстке — кто уступает?", "img":"/static/4.png",
+         "a":["легковые","грузовик","пешеход"], "correct":0},
+
+        {"q":"Остановка на мосту разрешена?", "img":"/static/5.png",
+         "a":["да","нет"], "correct":1}
     ]
 }
 
+@app.route("/")
+def home():
+    return render_template("index.html")
+
 @app.route("/start", methods=["POST"])
 def start():
-    data = request.json
-    fio = data["fio"]
-    category = data["category"]
-
     ip = request.remote_addr
-    now = time.time()
+    data = request.json
+    cat = data["category"]
 
-    if ip in attempts and now - attempts[ip] < 3 * 60 * 60:
-        return jsonify({"error": "Повтор через 3 часа"}), 403
+    if ip in attempts and time.time() - attempts[ip] < 3*60*60:
+        return jsonify({"error":"Повтор через 3 часа"}), 403
 
-    attempts[ip] = now
+    attempts[ip] = time.time()
 
-    return jsonify({"questions": QUESTIONS[category]})
+    questions = random.sample(QUESTIONS_BANK[cat], len(QUESTIONS_BANK[cat]))
 
+    return jsonify({"questions": questions})
 
 @app.route("/finish", methods=["POST"])
 def finish():
     data = request.json
-
     fio = data["fio"]
-    category = data["category"]
+    cat = data["category"]
     answers = data["answers"]
 
-    questions = QUESTIONS[category]
-
+    qs = QUESTIONS_BANK[cat]
     errors = 0
+    details = []
 
-    for i, q in enumerate(questions):
-        if answers[i] != q["correct"]:
+    for i,q in enumerate(qs):
+        ok = answers[i] == q["correct"]
+        if not ok:
             errors += 1
+        details.append(ok)
 
     result = "СДАЛ" if errors <= 2 else "НЕ СДАЛ"
 
-    send_email(fio, category, result, errors)
+    send_email(fio, cat, result, errors)
 
-    return jsonify({"result": result, "errors": errors})
+    return jsonify({"result":result, "details":details})
 
-
-def send_email(fio, category, result, errors):
-    message = f"""
-ФИО: {fio}
-Категория: {category}
-Результат: {result}
-Ошибки: {errors}
+def send_email(fio,cat,result,errors):
+    msg=f"""
+ФИО:{fio}
+Категория:{cat}
+Результат:{result}
+Ошибки:{errors}
 """
 
-    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server=smtplib.SMTP("smtp.gmail.com",587)
     server.starttls()
-    server.login(os.getenv("EMAIL"), os.getenv("PASSWORD"))
-    server.sendmail(os.getenv("EMAIL"), "Timkaxd@mail.ru", message)
+    server.login(os.getenv("EMAIL"),os.getenv("PASSWORD"))
+    server.sendmail(os.getenv("EMAIL"),"Timkaxd@mail.ru",msg)
     server.quit()
 
-
-app.run(host="0.0.0.0", port=10000)
+if __name__=="__main__":
+    app.run()
