@@ -4,7 +4,12 @@ import smtplib
 import os
 
 app = Flask(__name__)
-
+@app.route("/")
+def home():
+    return """
+    <h1>Тест ПДД</h1>
+    <p>Система работает</p>
+    """
 attempts = {}
 
 QUESTIONS = {
