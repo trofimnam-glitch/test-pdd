@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ПДД Экзамен</title>
+<style>
+body{background:#0b1f3a;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh}
+.card{background:white;color:black;padding:20px;border-radius:10px;width:90%;max-width:500px}
+button{width:100%;padding:10px;margin-top:10px;background:#0b3d91;color:white;border:none}
+img{width:100%;border-radius:10px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div class="card" id="login">
+<h2>Экзамен ПДД</h2>
+<input id="fio" placeholder="ФИО">
+<select id="cat">
+<option value="ab">AB</option>
+<option value="cd">CD</option>
+</select>
+<button onclick="start()">Начать</button>
+</div>
+
+<div class="card" id="test" style="display:none;">
+<h3 id="q"></h3>
+<img id="img">
+<div id="answers"></div>
+<button id="next" disabled onclick="next()">Далее</button>
+</div>
+
+<div class="card" id="result" style="display:none;"></div>
+
+<script>
+let q=[],i=0,a=[],sel=null,fio="",cat=""
+
+async function start(){
+fio=document.getElementById("fio").value
+cat=document.getElementById("cat").value
+
+let r=await fetch("/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category:cat})})
+let d=await r.json()
+if(d.error)return alert(d.error)
+
+q=d.questions
+
+document.getElementById("login").style.display="none"
+document.getElementById("test").style.display="block"
+
+render()
+}
+
+function render(){
+sel=null
+document.getElementById("next").disabled=true
+
+document.getElementById("q").innerText=q[i].q
+document.getElementById("img").src=q[i].img||""
+
+let box=document.getElementById("answers")
+box.innerHTML=""
+
+q[i].a.forEach((x,idx)=>{
+let b=document.createElement("button")
+b.innerText=x
+b.onclick=()=>{sel=idx;document.getElementById("next").disabled=false}
+box.appendChild(b)
+})
+}
+
+function next(){
+a.push(sel)
+i++
+if(i>=q.length)return finish()
+render()
+}
+
+async function finish(){
+let r=await fetch("/finish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fio,category:cat,answers:a})})
+let d=await r.json()
+
+document.getElementById("test").style.display="none"
+document.getElementById("result").style.display="block"
+
+document.getElementById("result").innerHTML="<h2>"+d.result+"</h2>"
+}
+</script>
+
+</body>
+</html>
